@@ -139,38 +139,111 @@ async function handleScrape(e) {
     const btn = document.getElementById('scrapeBtn');
     const url = document.getElementById('urlInput').value;
     const name = document.getElementById('nameInput').value || url;
+    const crawlDepth = parseInt(document.getElementById('crawlDepth').value);
+    const maxPages = parseInt(document.getElementById('maxPages').value);
 
-    // UI Loading State
-    const originalText = btn.innerHTML;
+    // Show modal
+    const modal = document.getElementById('scrapeModal');
+    const progressBar = document.getElementById('scrapeProgressBar');
+    const progressText = document.getElementById('scrapeProgressText');
+    const etaText = document.getElementById('scrapeETA');
+    const logsContainer = document.getElementById('scrapeLogs');
+    const cancelBtn = document.getElementById('scrapeCancelBtn');
+
+    modal.classList.remove('hidden');
+    progressBar.style.width = '0%';
+    progressText.textContent = 'Page 0/' + maxPages;
+    etaText.textContent = 'Est: --s';
+    logsContainer.innerHTML = '<div class="text-gray-400">Connecting...</div>';
+
+    // Disable form
     btn.disabled = true;
     btn.innerHTML = '<div class="spinner mr-2"></div> Processing...';
 
+    let aborted = false;
+
+    const addLog = (msg, isSuccess = false) => {
+        const div = document.createElement('div');
+        div.className = isSuccess ? 'text-green-600 dark:text-green-400' : '';
+        div.textContent = msg;
+        logsContainer.appendChild(div);
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+    };
+
+    const closeModal = (success = false) => {
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            if (success) {
+                document.getElementById('urlInput').value = '';
+                document.getElementById('nameInput').value = '';
+                loadStats();
+            }
+        }, success ? 1500 : 0);
+    };
+
+    cancelBtn.onclick = () => {
+        aborted = true;
+        closeModal(false);
+        btn.disabled = false;
+        btn.innerHTML = 'Start Scraping';
+        Toast.show('Scraping cancelled', 'warning');
+    };
+
     try {
-        const res = await fetch(CONFIG.endpoints.scrape, {
+        const response = await fetch(CONFIG.endpoints.scrape, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                url,
-                name,
-                crawl_depth: parseInt(document.getElementById('crawlDepth').value),
-                max_pages: parseInt(document.getElementById('maxPages').value)
-            })
+            body: JSON.stringify({ url, name, crawl_depth: crawlDepth, max_pages: maxPages })
         });
-        const data = await res.json();
 
-        if (data.success) {
-            Toast.show(`Successfully added ${data.chunks} chunks!`, 'success');
-            document.getElementById('urlInput').value = '';
-            document.getElementById('nameInput').value = '';
-            loadStats();
-        } else {
-            Toast.show(data.error || 'Scraping failed', 'error');
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done || aborted) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop(); // Keep incomplete chunk
+
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                try {
+                    const event = JSON.parse(line.slice(6));
+
+                    if (event.type === 'start') {
+                        addLog('🚀 ' + event.message);
+                    } else if (event.type === 'progress') {
+                        progressBar.style.width = event.progress + '%';
+                        progressText.textContent = `Page ${event.current_page}/${event.max_pages}`;
+                        etaText.textContent = `Est: ${event.estimated_seconds}s`;
+                        if (event.log) addLog(event.log);
+                    } else if (event.type === 'log') {
+                        addLog(event.message, event.message.startsWith('✓'));
+                    } else if (event.type === 'complete') {
+                        progressBar.style.width = '100%';
+                        addLog('✅ ' + event.message, true);
+                        Toast.show(event.message, 'success');
+                        closeModal(true);
+                    } else if (event.type === 'error') {
+                        addLog('❌ Error: ' + event.message);
+                        Toast.show(event.message, 'error');
+                        closeModal(false);
+                    }
+                } catch (parseErr) {
+                    console.error('Parse error:', parseErr);
+                }
+            }
         }
     } catch (e) {
+        addLog('❌ Connection error: ' + e.message);
         Toast.show(e.message, 'error');
+        closeModal(false);
     } finally {
         btn.disabled = false;
-        btn.innerHTML = originalText;
+        btn.innerHTML = 'Start Scraping';
     }
 }
 

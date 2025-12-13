@@ -433,6 +433,54 @@
         </main>
     </div>
 
+    <!-- Scrape Progress Modal -->
+    <div id="scrapeModal"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-lg w-full p-8 transform transition-all">
+            <div class="text-center mb-6">
+                <div
+                    class="w-16 h-16 mx-auto bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center mb-4">
+                    <svg class="w-8 h-8 text-indigo-600 dark:text-indigo-400 animate-spin" fill="none"
+                        stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                </div>
+                <h3 id="scrapeModalTitle" class="text-xl font-bold text-gray-800 dark:text-gray-100">Scraping in
+                    Progress</h3>
+                <p id="scrapeModalSubtitle" class="text-sm text-gray-500 dark:text-gray-400 mt-1">Please wait while we
+                    fetch your content...</p>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="mb-6">
+                <div class="flex justify-between text-sm mb-2">
+                    <span id="scrapeProgressText" class="font-medium text-gray-700 dark:text-gray-300">Page 0/0</span>
+                    <span id="scrapeETA" class="text-gray-500">Est: --s</span>
+                </div>
+                <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div id="scrapeProgressBar"
+                        class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-300 ease-out"
+                        style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Live Logs -->
+            <div
+                class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700">
+                <div id="scrapeLogs" class="space-y-1 font-mono text-xs text-gray-600 dark:text-gray-400">
+                    <div class="text-gray-400">Waiting to start...</div>
+                </div>
+            </div>
+
+            <!-- Cancel Button -->
+            <button id="scrapeCancelBtn"
+                class="mt-6 w-full py-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition font-medium">
+                Cancel
+            </button>
+        </div>
+    </div>
+
     <!-- Main JS -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>

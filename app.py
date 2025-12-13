@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 import sqlite3
 import sqlite_vec
 import ollama
@@ -132,96 +132,142 @@ def scrape_page(url, headers):
 
 @app.route('/api/scrape', methods=['POST'])
 def scrape_url():
-    """Scrape URL and optionally crawl sublinks"""
-    try:
-        data = request.json
-        url = data.get('url')
-        source_name = data.get('name', url)
-        crawl_depth = data.get('crawl_depth', 0)  # 0 = single page, 1+ = crawl sublinks
-        max_pages = data.get('max_pages', 10)  # Limit pages to crawl
+    """Scrape URL with real-time progress streaming via SSE"""
+    data = request.json
+    url = data.get('url')
+    source_name = data.get('name', url)
+    crawl_depth = data.get('crawl_depth', 0)
+    max_pages = data.get('max_pages', 10)
+    
+    if not url:
+        return jsonify({'error': 'URL is required'}), 400
+    
+    def generate():
+        import json
         
-        if not url:
-            return jsonify({'error': 'URL is required'}), 400
+        def send_event(event_type, data):
+            return f"data: {json.dumps({'type': event_type, **data})}\n\n"
         
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        
-        # Track visited URLs and pages to visit
-        visited = set()
-        to_visit = deque([(url, 0)])  # (url, depth)
-        all_text_content = []
-        pages_scraped = 0
-        
-        base_domain = get_domain(url)
-        
-        while to_visit and pages_scraped < max_pages:
-            current_url, depth = to_visit.popleft()
+        try:
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
             
-            # Skip if already visited
-            if current_url in visited:
-                continue
+            visited = set()
+            to_visit = deque([(url, 0)])
+            all_text_content = []
+            pages_scraped = 0
             
-            visited.add(current_url)
+            base_domain = get_domain(url)
             
-            # Scrape the page
-            logging.info(f"Scraping: {current_url} (depth: {depth})")
-            text_content, soup = scrape_page(current_url, headers)
+            yield send_event('start', {
+                'message': f'Starting scrape of {url}',
+                'max_pages': max_pages,
+                'crawl_depth': crawl_depth
+            })
             
-            if text_content and text_content.strip():
-                all_text_content.append({
-                    'url': current_url,
-                    'text': text_content
+            while to_visit and pages_scraped < max_pages:
+                current_url, depth = to_visit.popleft()
+                
+                if current_url in visited:
+                    continue
+                
+                visited.add(current_url)
+                
+                # Progress update - Scraping phase is 0% to 60%
+                scrape_progress = (pages_scraped / max_pages) * 60
+                remaining = max_pages - pages_scraped
+                est_time = remaining * 1 + len(all_text_content) * 2  # ~1s per page + ~2s per page for indexing
+                
+                yield send_event('progress', {
+                    'current_page': pages_scraped + 1,
+                    'max_pages': max_pages,
+                    'progress': round(scrape_progress, 1),
+                    'estimated_seconds': est_time,
+                    'log': f'Scraping: {current_url[:60]}...' if len(current_url) > 60 else f'Scraping: {current_url}',
+                    'phase': 'scraping'
                 })
-                pages_scraped += 1
                 
-                # Find sublinks if we haven't reached max depth
-                if depth < crawl_depth and soup:
-                    links = extract_links(soup, current_url)
-                    for link in links:
-                        # Only crawl links from the same domain
-                        if is_same_domain(link, base_domain) and link not in visited:
-                            to_visit.append((link, depth + 1))
-            
-            # Be respectful to servers
-            time.sleep(0.5)
-        
-        if not all_text_content:
-            return jsonify({'error': 'No text content found'}), 400
-        
-        # Process all scraped content
-        total_stored = 0
-        for page_data in all_text_content:
-            page_url = page_data['url']
-            text = page_data['text']
-            
-            # Chunk text
-            chunks = token_based_chunking(text, embedding_model.tokenizer, max_tokens=2048, overlap_tokens=100)
-            
-            # Generate embeddings and store
-            for chunk in chunks:
-                embedding = embedding_model.encode(chunk, normalize_embeddings=True)
-                if len(embedding) > EMBEDDING_DIMS:
-                    embedding = embedding[:EMBEDDING_DIMS]
+                text_content, soup = scrape_page(current_url, headers)
                 
-                # Store with source name and page URL
-                page_source = f"{source_name} ({page_url})"
-                conn.execute(f"""
-                    INSERT INTO {TABLE_NAME} (text, source, embedding)
-                    VALUES (?, ?, ?)
-                """, (chunk, page_source, serialize_f32(embedding.tolist())))
-                total_stored += 1
-        
-        conn.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Added {total_stored} chunks from {pages_scraped} page(s)',
-            'chunks': total_stored,
-            'pages': pages_scraped
-        })
-        
-    except Exception as e:
-        logging.error(f"Scrape error: {e}")
-        return jsonify({'error': str(e)}), 500
+                if text_content and text_content.strip():
+                    all_text_content.append({
+                        'url': current_url,
+                        'text': text_content
+                    })
+                    pages_scraped += 1
+                    
+                    yield send_event('log', {
+                        'message': f'✓ Scraped {len(text_content)} chars from page {pages_scraped}'
+                    })
+                    
+                    if depth < crawl_depth and soup:
+                        links = extract_links(soup, current_url)
+                        new_links = 0
+                        for link in links:
+                            if is_same_domain(link, base_domain) and link not in visited:
+                                to_visit.append((link, depth + 1))
+                                new_links += 1
+                        if new_links > 0:
+                            yield send_event('log', {
+                                'message': f'  Found {new_links} sublinks to crawl'
+                            })
+                
+                time.sleep(0.5)
+            
+            if not all_text_content:
+                yield send_event('error', {'message': 'No text content found'})
+                return
+            
+            # Processing phase - 60% to 100%
+            yield send_event('log', {'message': 'Processing and indexing content...'})
+            
+            total_stored = 0
+            total_pages = len(all_text_content)
+            for i, page_data in enumerate(all_text_content):
+                page_url = page_data['url']
+                text = page_data['text']
+                
+                # Indexing phase: 60% to 100%
+                index_progress = 60 + ((i + 1) / total_pages) * 40
+                remaining_pages = total_pages - i - 1
+                est_time = remaining_pages * 2  # ~2s per page for indexing
+                
+                yield send_event('progress', {
+                    'current_page': i + 1,
+                    'max_pages': total_pages,
+                    'progress': round(index_progress, 1),
+                    'estimated_seconds': est_time,
+                    'log': f'Indexing page {i+1}/{total_pages}...',
+                    'phase': 'indexing'
+                })
+                
+                chunks = token_based_chunking(text, embedding_model.tokenizer, max_tokens=2048, overlap_tokens=100)
+                
+                for chunk in chunks:
+                    embedding = embedding_model.encode(chunk, normalize_embeddings=True)
+                    if len(embedding) > EMBEDDING_DIMS:
+                        embedding = embedding[:EMBEDDING_DIMS]
+                    
+                    page_source = f"{source_name} ({page_url})"
+                    conn.execute(f"""
+                        INSERT INTO {TABLE_NAME} (text, source, embedding)
+                        VALUES (?, ?, ?)
+                    """, (chunk, page_source, serialize_f32(embedding.tolist())))
+                    total_stored += 1
+            
+            conn.commit()
+            
+            yield send_event('complete', {
+                'success': True,
+                'message': f'Added {total_stored} chunks from {pages_scraped} page(s)',
+                'chunks': total_stored,
+                'pages': pages_scraped
+            })
+            
+        except Exception as e:
+            logging.error(f"Scrape error: {e}")
+            yield send_event('error', {'message': str(e)})
+    
+    return Response(generate(), mimetype='text/event-stream')
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
