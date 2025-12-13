@@ -12,6 +12,7 @@ from urllib.parse import urljoin, urlparse
 from collections import deque
 import time
 import google.generativeai as genai
+import fitz  # PyMuPDF for PDF text extraction
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -222,9 +223,136 @@ def scrape_url():
         logging.error(f"Scrape error: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    """Upload and index a file (PDF, TXT, MD)"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        filename = file.filename
+        source_name = request.form.get('name', filename)
+        file_ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+        
+        # Extract text based on file type
+        text_content = ''
+        
+        if file_ext == 'pdf':
+            # Use PyMuPDF to extract text from PDF
+            pdf_bytes = file.read()
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            for page in doc:
+                text_content += page.get_text() + '\n'
+            doc.close()
+        elif file_ext in ['txt', 'md', 'markdown']:
+            # Read text files directly
+            text_content = file.read().decode('utf-8', errors='ignore')
+        else:
+            return jsonify({'error': f'Unsupported file type: .{file_ext}. Supported: PDF, TXT, MD'}), 400
+        
+        if not text_content.strip():
+            return jsonify({'error': 'No text content found in file'}), 400
+        
+        # Chunk and embed
+        chunks = token_based_chunking(text_content, embedding_model.tokenizer, max_tokens=2048, overlap_tokens=100)
+        
+        total_stored = 0
+        for chunk in chunks:
+            embedding = embedding_model.encode(chunk, normalize_embeddings=True)
+            if len(embedding) > EMBEDDING_DIMS:
+                embedding = embedding[:EMBEDDING_DIMS]
+            
+            conn.execute(f"""
+                INSERT INTO {TABLE_NAME} (text, source, embedding)
+                VALUES (?, ?, ?)
+            """, (chunk, source_name, serialize_f32(embedding.tolist())))
+            total_stored += 1
+        
+        conn.commit()
+        logging.info(f"Uploaded file '{filename}' with {total_stored} chunks")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Added {total_stored} chunks from {filename}',
+            'chunks': total_stored,
+            'filename': filename
+        })
+        
+    except Exception as e:
+        logging.error(f"Upload error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+def hybrid_search(query, top_k=5, vector_weight=0.6, keyword_weight=0.4):
+    """
+    Hybrid search combining vector similarity with keyword matching.
+    Returns list of (text, source, combined_score) sorted by score descending.
+    """
+    import re
+    
+    # Generate query embedding
+    query_embedding = embedding_model.encode(query, normalize_embeddings=True)
+    if len(query_embedding) > EMBEDDING_DIMS:
+        query_embedding = query_embedding[:EMBEDDING_DIMS]
+    
+    # Get more candidates from vector search for re-ranking
+    candidate_count = max(top_k * 3, 15)
+    
+    cursor = conn.execute(f"""
+        SELECT rowid, text, source, distance
+        FROM {TABLE_NAME}
+        WHERE embedding MATCH ?
+        ORDER BY distance
+        LIMIT ?
+    """, (serialize_f32(query_embedding.tolist()), candidate_count))
+    
+    candidates = cursor.fetchall()
+    
+    if not candidates:
+        return []
+    
+    # Prepare query terms for keyword matching (lowercase, split by non-word chars)
+    query_terms = set(re.findall(r'\w+', query.lower()))
+    
+    scored_results = []
+    for row in candidates:
+        rowid, text, source, distance = row
+        
+        # Vector score: convert distance to similarity (lower distance = higher score)
+        # Distance is typically 0-2 for normalized embeddings
+        vector_score = max(0, 1 - distance)
+        
+        # Keyword score: what fraction of query terms appear in the text?
+        text_lower = text.lower()
+        source_lower = source.lower() if source else ""
+        matching_terms = sum(1 for term in query_terms if term in text_lower or term in source_lower)
+        keyword_score = matching_terms / len(query_terms) if query_terms else 0
+        
+        # Combined score
+        combined_score = (vector_score * vector_weight) + (keyword_score * keyword_weight)
+        
+        scored_results.append({
+            'id': rowid,
+            'text': text,
+            'source': source,
+            'distance': distance,
+            'vector_score': vector_score,
+            'keyword_score': keyword_score,
+            'score': combined_score
+        })
+    
+    # Sort by combined score (descending)
+    scored_results.sort(key=lambda x: x['score'], reverse=True)
+    
+    return scored_results[:top_k]
+
+
 @app.route('/api/search', methods=['POST'])
 def search():
-    """Perform semantic search"""
+    """Perform hybrid search (vector + keyword)"""
     try:
         data = request.json
         query = data.get('query')
@@ -233,32 +361,19 @@ def search():
         if not query:
             return jsonify({'error': 'Query is required'}), 400
         
-        # Generate query embedding
-        query_embedding = embedding_model.encode(query, normalize_embeddings=True)
-        if len(query_embedding) > EMBEDDING_DIMS:
-            query_embedding = query_embedding[:EMBEDDING_DIMS]
-        
-        # Search
-        cursor = conn.execute(f"""
-            SELECT rowid, text, source, distance
-            FROM {TABLE_NAME}
-            WHERE embedding MATCH ?
-            ORDER BY distance
-            LIMIT ?
-        """, (serialize_f32(query_embedding.tolist()), top_k))
-        
-        results = cursor.fetchall()
+        results = hybrid_search(query, top_k=top_k)
         
         return jsonify({
             'success': True,
             'results': [
                 {
-                    'id': row[0],
-                    'text': row[1],
-                    'source': row[2],
-                    'distance': row[3]
+                    'id': r['id'],
+                    'text': r['text'],
+                    'source': r['source'],
+                    'distance': r['distance'],
+                    'score': r['score']
                 }
-                for row in results
+                for r in results
             ]
         })
         
@@ -268,43 +383,42 @@ def search():
 
 @app.route('/api/answer', methods=['POST'])
 def answer():
-    """Generate answer using RAG"""
+    """Generate answer using RAG with optional chat history"""
     try:
         data = request.json
         question = data.get('question')
         top_k = data.get('top_k', 3)
         settings = data.get('settings', {'provider': 'ollama', 'ollamaModel': 'qwen3:4b'})
+        history = data.get('history', [])  # List of {role: 'user'|'assistant', content: '...'}
         
         if not question:
             return jsonify({'error': 'Question is required'}), 400
         
-        # Search for context
-        query_embedding = embedding_model.encode(question, normalize_embeddings=True)
-        if len(query_embedding) > EMBEDDING_DIMS:
-            query_embedding = query_embedding[:EMBEDDING_DIMS]
-        
-        cursor = conn.execute(f"""
-            SELECT text, source
-            FROM {TABLE_NAME}
-            WHERE embedding MATCH ?
-            ORDER BY distance
-            LIMIT ?
-        """, (serialize_f32(query_embedding.tolist()), top_k))
-        
-        contexts = [row[0] for row in cursor.fetchall()]
+        # Use hybrid search for better context retrieval
+        search_results = hybrid_search(question, top_k=top_k)
+        contexts = [r['text'] for r in search_results]
         
         if not contexts:
             return jsonify({'error': 'No relevant context found'}), 404
         
-        # Build prompt
+        # Build conversation history string
+        history_text = ""
+        if history:
+            history_text = "\n\nPrevious conversation:\n"
+            for msg in history[-6:]:  # Limit to last 6 messages (3 Q&A pairs)
+                role = "User" if msg.get('role') == 'user' else "Assistant"
+                history_text += f"{role}: {msg.get('content', '')}\n"
+        
+        # Build prompt with context and history
         combined_context = "\n\n".join(contexts)
         prompt = f"""Use the following contexts to answer the question comprehensively.
 If you don't know the answer based on the provided contexts, just say that you don't know.
+Consider the conversation history when answering follow-up questions.
 
 Contexts:
 {combined_context}
-
-Question: {question}
+{history_text}
+Current Question: {question}
 
 Answer:"""
         
@@ -316,7 +430,7 @@ Answer:"""
                 return jsonify({'error': 'Google API key not configured'}), 400
             
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-2.5-flash')  # Fixed to Gemini 2.5 Flash
+            model = genai.GenerativeModel('gemini-2.5-flash')
             response = model.generate_content(prompt)
             answer_text = response.text
         else:

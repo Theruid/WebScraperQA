@@ -1,627 +1,440 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAG System</title>
+    <title>RAG System - Knowledge Base</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Tailwind CSS (CDN for simplicity) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .fade-in { animation: fadeIn 0.3s ease-in; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .spinner { border: 2px solid #f3f4f6; border-top: 2px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .nav-item { transition: all 0.2s; }
-        .nav-item:hover { background: rgba(59, 130, 246, 0.1); }
-        .nav-item.active { background: rgba(59, 130, 246, 0.15); border-left: 3px solid #3b82f6; }
-        .section { display: none; }
-        .section.active { display: block; animation: fadeIn 0.3s ease-in; }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: ['class', '[data-theme="dark"]'],
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { 50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Outfit', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body class="bg-gray-50 h-screen overflow-hidden">
-    <div class="flex h-full">
+
+<body class="h-screen overflow-hidden text-gray-800 dark:text-gray-100 selection:bg-indigo-500 selection:text-white">
+
+    <div class="flex h-full relative z-10">
+
         <!-- Sidebar -->
-        <div class="w-64 bg-white border-r border-gray-200 flex flex-col">
-            <!-- Logo -->
-            <div class="p-6 border-b border-gray-200">
-                <h1 class="text-2xl font-bold text-gray-900">RAG System</h1>
-                <p class="text-xs text-gray-500 mt-1">Knowledge Base</p>
+        <aside class="w-72 glass-panel flex flex-col transition-colors duration-300">
+            <!-- Brand -->
+            <div class="p-8 pb-4">
+                <div class="flex items-center gap-3 mb-1">
+                    <div
+                        class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg">
+                        R
+                    </div>
+                    <h1
+                        class="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400">
+                        RAG System
+                    </h1>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 ml-1 font-medium tracking-wide">INTELLIGENT KNOWLEDGE
+                    BASE</p>
             </div>
 
             <!-- Navigation -->
-            <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
-                <button onclick="showSection('dashboard')" data-section="dashboard" class="nav-item active w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-gray-700">
+            <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+                <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Menu</p>
+
+                <button onclick="showSection('dashboard')" data-section="dashboard"
+                    class="nav-item active w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 font-medium">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                     </svg>
-                    <span class="font-medium">Dashboard</span>
+                    Dashboard
                 </button>
-                <button onclick="showSection('search')" data-section="search" class="nav-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-gray-700">
+
+                <button onclick="showSection('search')" data-section="search"
+                    class="nav-item w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 font-medium">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
-                    <span class="font-medium">Search</span>
+                    Search
                 </button>
-                <button onclick="showSection('add-source')" data-section="add-source" class="nav-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-gray-700">
+
+                <button onclick="showSection('add-source')" data-section="add-source"
+                    class="nav-item w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 font-medium">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span class="font-medium">Add Source</span>
+                    Add Source
                 </button>
-                <button onclick="showSection('sources')" data-section="sources" class="nav-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-gray-700">
+
+                <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 mt-6">Config</p>
+
+                <button onclick="showSection('sources')" data-section="sources"
+                    class="nav-item w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 font-medium">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                     </svg>
-                    <span class="font-medium">Manage Sources</span>
+                    Manage Sources
                 </button>
-                <button onclick="showSection('settings')" data-section="settings" class="nav-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-gray-700">
+
+                <button onclick="showSection('settings')" data-section="settings"
+                    class="nav-item w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 font-medium">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    <span class="font-medium">Settings</span>
+                    Settings
                 </button>
             </nav>
 
-            <!-- Stats Footer -->
-            <div class="p-4 border-t border-gray-200 space-y-2">
-                <div class="flex justify-between text-sm">
-                    <span class="text-gray-500">Chunks</span>
-                    <span class="font-semibold text-gray-900" id="totalChunks">0</span>
-                </div>
-                <div class="flex justify-between text-sm">
-                    <span class="text-gray-500">Sources</span>
-                    <span class="font-semibold text-gray-900" id="sourceCount">0</span>
+            <!-- Bottom Actions -->
+            <div class="p-4 border-t border-gray-200/20">
+                <button id="themeToggleBtn"
+                    class="w-full mb-4 flex items-center justify-center py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition">
+                    <!-- Icon injected by JS -->
+                </button>
+
+                <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 px-2">
+                    <span>Chunks: <b id="totalChunks" class="text-gray-900 dark:text-gray-200">0</b></span>
+                    <span>Sources: <b id="sourceCount" class="text-gray-900 dark:text-gray-200">0</b></span>
                 </div>
             </div>
-        </div>
+        </aside>
 
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto bg-gray-50">
-            <div class="max-w-4xl mx-auto p-8">
-                
-                <!-- Dashboard Section -->
-                <div id="dashboard" class="section active">
-                    <!-- Ask Question Section -->
-                    <div class="bg-white rounded-xl shadow-sm p-8">
-                        <h2 class="text-2xl font-bold text-gray-900 mb-6">Ask a Question</h2>
-                        <form id="dashAnswerForm" class="space-y-4">
-                            <div>
-                                <textarea id="dashQuestionInput" required rows="4"
-                                          class="w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                          placeholder="Ask anything about your indexed content..."></textarea>
-                            </div>
-                            <button type="submit" id="dashAnswerBtn"
-                                    class="w-full bg-purple-600 text-white py-3 px-6 rounded-lg hover:bg-purple-700 transition font-medium text-lg">
-                                Generate Answer
+        <main class="flex-1 overflow-y-auto relative scroll-smooth">
+            <div class="max-w-5xl mx-auto p-8 lg:p-12">
+
+                <!-- Dashboard Section (Chat Interface) -->
+                <div id="dashboard" class="section active fade-in flex flex-col h-[calc(100vh-10rem)]">
+                    <header class="mb-4 flex-none flex items-center justify-between">
+                        <div>
+                            <h2 class="text-3xl font-display font-bold mb-1">Chat with your Knowledge Base</h2>
+                            <p class="text-gray-500 dark:text-gray-400 text-sm">Ask questions and get answers from your
+                                indexed content</p>
+                        </div>
+                        <button id="newChatBtn"
+                            class="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition flex items-center gap-2 text-sm font-medium">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 4v16m8-8H4" />
+                            </svg>
+                            New Chat
+                        </button>
+                    </header>
+
+                    <!-- Chat Messages Container -->
+                    <div id="chatMessages" class="flex-1 overflow-y-auto space-y-4 mb-4 pr-2 scroll-smooth">
+                        <!-- Welcome message -->
+                        <div class="text-center py-16 text-gray-400" id="chatPlaceholder">
+                            <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                            </svg>
+                            <p class="text-lg font-medium">Start a conversation</p>
+                            <p class="text-sm mt-1">Ask anything about your indexed documents</p>
+                        </div>
+                    </div>
+
+                    <!-- Chat Input -->
+                    <div
+                        class="glass p-4 rounded-2xl border border-white/40 dark:border-white/10 flex-none sticky bottom-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
+                        <form id="dashAnswerForm" class="flex gap-3">
+                            <input type="text" id="dashQuestionInput" required
+                                class="flex-1 px-5 py-3 bg-white/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 outline-none text-base"
+                                placeholder="Ask a follow-up question...">
+                            <button type="submit" id="dashSendBtn"
+                                class="px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition flex items-center gap-2 font-medium disabled:opacity-50">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                                Send
                             </button>
                         </form>
-                        <div id="dashAnswerResult" class="mt-6"></div>
                     </div>
                 </div>
 
                 <!-- Add Source Section -->
-                <div id="add-source" class="section">
-                    <h2 class="text-3xl font-bold text-gray-900 mb-6">Add Source</h2>
-                    <div class="bg-white rounded-lg shadow-sm p-6">
-                        <form id="scrapeForm" class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">URL</label>
-                                <input type="url" id="urlInput" required
-                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                       placeholder="https://example.com/docs">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Name (optional)</label>
-                                <input type="text" id="nameInput"
-                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                       placeholder="My Documentation">
-                            </div>
-                            <div class="grid grid-cols-2 gap-4">
+                <div id="add-source" class="section slide-in" style="display: none;">
+                    <h2 class="text-3xl font-display font-bold mb-8">Add to Knowledge Base</h2>
+
+                    <!-- Tabs -->
+                    <div
+                        class="flex space-x-1 bg-gray-100/50 dark:bg-gray-800/50 p-1 rounded-xl w-fit mb-8 border border-gray-200/50 dark:border-gray-700/50">
+                        <button onclick="switchSourceTab('web')" id="tab-web"
+                            class="px-6 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400">
+                            Web Scraper
+                        </button>
+                        <button onclick="switchSourceTab('file')" id="tab-file"
+                            class="px-6 py-2.5 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-all">
+                            File Upload
+                        </button>
+                    </div>
+
+                    <!-- Web Scraper Tab -->
+                    <div id="content-web" class="source-tab-content fade-in">
+                        <div class="glass p-8 rounded-3xl">
+                            <form id="scrapeForm" class="space-y-6">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Crawl Depth</label>
-                                    <input type="number" id="crawlDepth" value="0" min="0" max="3"
-                                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                           title="0 = single page, 1+ = follow links">
-                                    <p class="text-xs text-gray-500 mt-1">0 = single page, 1+ = crawl links</p>
+                                    <label
+                                        class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Target
+                                        URL</label>
+                                    <input type="url" id="urlInput" required
+                                        class="w-full px-5 py-3 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 outline-none transition"
+                                        placeholder="https://example.com/docs">
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Max Pages</label>
-                                    <input type="number" id="maxPages" value="10" min="1" max="50"
-                                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                    <p class="text-xs text-gray-500 mt-1">Limit pages to crawl</p>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label
+                                            class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Name
+                                            (Optional)</label>
+                                        <input type="text" id="nameInput"
+                                            class="w-full px-5 py-3 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 outline-none transition"
+                                            placeholder="e.g. Project Docs">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label
+                                                class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Depth</label>
+                                            <input type="number" id="crawlDepth" value="0" min="0" max="3"
+                                                class="w-full px-4 py-3 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-center focus:ring-2 focus:ring-indigo-500/50 outline-none">
+                                        </div>
+                                        <div>
+                                            <label
+                                                class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Max
+                                                Pages</label>
+                                            <input type="number" id="maxPages" value="10" min="1" max="50"
+                                                class="w-full px-4 py-3 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-center focus:ring-2 focus:ring-indigo-500/50 outline-none">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="submit" id="scrapeBtn"
+                                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-500/20 transition transform hover:-translate-y-1 flex items-center justify-center">
+                                    Start Scraping
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- File Upload Tab -->
+                    <div id="content-file" class="source-tab-content fade-in hidden">
+                        <div class="glass p-12 rounded-3xl">
+                            <div id="dropZone"
+                                class="border-3 border-dashed border-gray-300 dark:border-gray-600 rounded-3xl p-16 text-center transition-all cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 group">
+                                <input type="file" id="fileInput" accept=".pdf,.txt,.md,.markdown" class="hidden">
+
+                                <div
+                                    class="pointer-events-none group-hover:scale-105 transition-transform duration-300">
+                                    <div
+                                        class="w-20 h-20 mx-auto bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center mb-6">
+                                        <svg class="w-10 h-10 text-indigo-600 dark:text-indigo-400" fill="none"
+                                            stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                        </svg>
+                                    </div>
+                                    <h3 class="text-xl font-bold text-gray-700 dark:text-gray-200 mb-2">Upload Files
+                                    </h3>
+                                    <p class="text-gray-500 dark:text-gray-400 mb-6">Drag & drop or click to browse</p>
+                                    <div class="flex justify-center gap-3">
+                                        <span
+                                            class="px-3 py-1 bg-white dark:bg-gray-800 rounded-md text-xs font-medium text-gray-500 border border-gray-200 dark:border-gray-700">PDF</span>
+                                        <span
+                                            class="px-3 py-1 bg-white dark:bg-gray-800 rounded-md text-xs font-medium text-gray-500 border border-gray-200 dark:border-gray-700">TXT</span>
+                                        <span
+                                            class="px-3 py-1 bg-white dark:bg-gray-800 rounded-md text-xs font-medium text-gray-500 border border-gray-200 dark:border-gray-700">MD</span>
+                                    </div>
+                                </div>
+
+                                <div id="uploadStatus"
+                                    class="hidden mt-8 p-4 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-indigo-100 dark:border-indigo-900/50 inline-block">
+                                    <div class="flex items-center gap-3">
+                                        <div class="spinner w-5 h-5 border-2"></div>
+                                        <span id="uploadFileName"
+                                            class="text-sm font-medium text-indigo-600 dark:text-indigo-400"></span>
+                                    </div>
                                 </div>
                             </div>
-                            <button type="submit" id="scrapeBtn"
-                                    class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2 font-medium">
-                                <span>Scrape & Add to Knowledge Base</span>
-                            </button>
-                        </form>
-                        <div id="scrapeResult" class="mt-4"></div>
+                        </div>
                     </div>
                 </div>
+
+                <script>
+                    function switchSourceTab(tab) {
+                        // Reset all tabs
+                        ['web', 'file'].forEach(t => {
+                            const btn = document.getElementById(`tab-${t}`);
+                            const content = document.getElementById(`content-${t}`);
+
+                            if (t === tab) {
+                                // Active state
+                                btn.classList.add('bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm');
+                                btn.classList.remove('text-gray-500', 'dark:text-gray-400', 'hover:text-gray-700', 'dark:hover:text-gray-200');
+                                content.classList.remove('hidden');
+                            } else {
+                                // Inactive state
+                                btn.classList.remove('bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm');
+                                btn.classList.add('text-gray-500', 'dark:text-gray-400', 'hover:text-gray-700', 'dark:hover:text-gray-200');
+                                content.classList.add('hidden');
+                            }
+                        });
+                    }
+                </script>
 
                 <!-- Search Section -->
-                <div id="search" class="section">
-                    <h2 class="text-3xl font-bold text-gray-900 mb-6">Similarity Search</h2>
-                    <div class="bg-white rounded-lg shadow-sm p-6">
-                        <form id="searchForm" class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Search Query</label>
-                                <input type="text" id="searchInput" required
-                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                                       placeholder="Search your knowledge base...">
-                            </div>
-                            <div class="flex gap-4">
-                                <div class="flex-1">
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Top K Results</label>
-                                    <input type="number" id="searchTopK" value="3" min="1" max="10"
-                                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
-                                </div>
-                                <div class="flex-1 flex items-end">
-                                    <button type="submit" id="searchBtn"
-                                            class="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition font-medium">
-                                        Search
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
-                        <div id="searchResults" class="mt-6 space-y-3"></div>
-                    </div>
-                </div>
+                <div id="search" class="section slide-in" style="display: none;">
+                    <h2 class="text-3xl font-display font-bold mb-8">Semantic Search</h2>
 
-                <!-- Ask Question Section -->
-                <div id="ask" class="section">
-                    <h2 class="text-3xl font-bold text-gray-900 mb-6">Ask Question</h2>
-                    <div class="bg-white rounded-lg shadow-sm p-6">
-                        <form id="answerForm" class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Your Question</label>
-                                <textarea id="questionInput" required rows="4"
-                                          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                          placeholder="Ask a question about your indexed content..."></textarea>
-                            </div>
-                            <button type="submit" id="answerBtn"
-                                    class="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 transition font-medium">
-                                Generate Answer
+                    <div class="glass p-6 rounded-3xl mb-8">
+                        <form id="searchForm" class="flex gap-4">
+                            <input type="text" id="searchInput" required
+                                class="flex-1 px-6 py-4 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 outline-none text-lg"
+                                placeholder="Search for concepts, not just keywords...">
+
+                            <input type="number" id="searchTopK" value="3" min="1" max="10"
+                                class="w-20 px-4 py-4 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-center font-bold"
+                                title="Results count">
+
+                            <button type="submit" id="searchBtn"
+                                class="px-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition shadow-lg shadow-indigo-500/20">
+                                Search
                             </button>
                         </form>
-                        <div id="answerResult" class="mt-6"></div>
                     </div>
+
+                    <div id="searchResults" class="space-y-4"></div>
                 </div>
 
-                <!-- Sources Section -->
-                <div id="sources" class="section">
-                    <h2 class="text-3xl font-bold text-gray-900 mb-6">Indexed Sources</h2>
-                    <div class="bg-white rounded-lg shadow-sm p-6">
-                        <div id="sourcesList" class="space-y-2">
-                            <p class="text-gray-500 text-sm">No sources yet</p>
+                <!-- Manage Sources Section -->
+                <div id="sources" class="section slide-in" style="display: none;">
+                    <h2 class="text-3xl font-display font-bold mb-8">Managed Sources</h2>
+                    <div class="glass p-6 rounded-3xl">
+                        <div id="sourcesList" class="space-y-3">
+                            <!-- Populated by JS -->
                         </div>
                     </div>
                 </div>
 
                 <!-- Settings Section -->
-                <div id="settings" class="section">
-                    <h2 class="text-3xl font-bold text-gray-900 mb-6">Settings</h2>
-                    
-                    <!-- Model Settings -->
-                    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-                        <h3 class="text-xl font-semibold text-gray-900 mb-4">Model Configuration</h3>
+                <div id="settings" class="section slide-in" style="display: none;">
+                    <h2 class="text-3xl font-display font-bold mb-8">Configuration</h2>
+
+                    <div class="glass p-8 rounded-3xl max-w-2xl">
                         <form id="settingsForm" class="space-y-6">
-                            
-                            <!-- Model Provider -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Model Provider</label>
-                                <select id="modelProvider" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                    <option value="ollama">Ollama (Local)</option>
-                                    <option value="google">Google AI (API)</option>
+                                <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">LLM
+                                    Provider</label>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="provider" value="ollama" class="peer sr-only">
+                                        <div
+                                            class="p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-900/20 transition text-center hover:bg-gray-50 dark:hover:bg-gray-800">
+                                            <span class="font-bold block">Ollama</span>
+                                            <span class="text-xs text-gray-500">Local Privacy</span>
+                                        </div>
+                                    </label>
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="provider" value="google" class="peer sr-only">
+                                        <div
+                                            class="p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-900/20 transition text-center hover:bg-gray-50 dark:hover:bg-gray-800">
+                                            <span class="font-bold block">Google AI</span>
+                                            <span class="text-xs text-gray-500">Cloud Power</span>
+                                        </div>
+                                    </label>
+                                </div>
+                                <!-- Hidden select for easier JS compat -->
+                                <select id="modelProvider" class="hidden">
+                                    <option value="ollama">Ollama</option>
+                                    <option value="google">Google</option>
                                 </select>
                             </div>
 
-                            <!-- Ollama Model Selection -->
-                            <div id="ollamaSettings">
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Ollama Model</label>
-                                <select id="ollamaModel" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                    <option value="qwen2.5:7b">Qwen 2.5 (7B)</option>
-                                    <option value="llama3.1:8b">Llama 3.1 (8B)</option>
-                                    <option value="mistral:7b">Mistral (7B)</option>
-                                    <option value="gemma2:9b">Gemma 2 (9B)</option>
-                                    <option value="phi3:medium">Phi-3 Medium (14B)</option>
-                                    <option value="qwen3:4b">Qwen 3 (4B)</option>
-                                </select>
-                                <p class="text-xs text-gray-500 mt-1">Make sure the model is pulled: <code class="bg-gray-100 px-1 rounded">ollama pull model-name</code></p>
-                            </div>
+                            <!-- Bind radio to select -->
+                            <script>
+                                document.querySelectorAll('input[name="provider"]').forEach(r => {
+                                    r.addEventListener('change', e => {
+                                        const sel = document.getElementById('modelProvider');
+                                        sel.value = e.target.value;
+                                        sel.dispatchEvent(new Event('change'));
+                                    });
+                                });
+                                // Reverse bind on load
+                                setTimeout(() => {
+                                    const val = document.getElementById('modelProvider').value;
+                                    const radio = document.querySelector(`input[name="provider"][value="${val}"]`);
+                                    if (radio) radio.checked = true;
+                                }, 100);
+                            </script>
 
-                            <!-- Google AI Settings -->
-                            <div id="googleSettings" style="display: none;">
-                                <div class="space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Google AI API Key</label>
-                                        <input type="password" id="googleApiKey" 
-                                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                               placeholder="Enter your Google AI API key">
-                                        <p class="text-xs text-gray-500 mt-1">Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank" class="text-blue-600 hover:underline">Google AI Studio</a></p>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Google Model</label>
-                                        <input type="text" id="googleModel" value="Gemini 2.5 Flash" readonly
-                                               class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600">
-                                        <p class="text-xs text-gray-500 mt-1">Fixed model for optimal performance</p>
-                                    </div>
+                            <div id="ollamaSettings" class="space-y-4 pt-4 border-t border-gray-200/50">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">Local Model</label>
+                                    <select id="ollamaModel"
+                                        class="w-full px-5 py-3 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 outline-none">
+                                        <option value="qwen2.5:7b">Qwen 2.5 (7B)</option>
+                                        <option value="llama3.1:8b">Llama 3.1 (8B)</option>
+                                        <option value="mistral:7b">Mistral (7B)</option>
+                                        <option value="gemma2:9b">Gemma 2 (9B)</option>
+                                        <option value="phi3:medium">Phi-3 Medium (14B)</option>
+                                        <option value="qwen3:4b">Qwen 3 (4B)</option>
+                                    </select>
                                 </div>
                             </div>
 
-                            <!-- Embedding Model -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Embedding Model</label>
-                                <input type="text" id="embeddingModel" value="google/embeddinggemma-300m" readonly
-                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600">
-                                <p class="text-xs text-gray-500 mt-1">Embedding model is fixed for consistency</p>
+                            <div id="googleSettings" class="space-y-4 pt-4 border-t border-gray-200/50"
+                                style="display: none;">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">API Key</label>
+                                    <input type="password" id="googleApiKey"
+                                        class="w-full px-5 py-3 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 outline-none"
+                                        placeholder="AIzaSy...">
+                                </div>
                             </div>
 
-                            <!-- Save Button -->
-                            <div class="flex gap-4">
-                                <button type="submit" class="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition font-medium">
-                                    Save Settings
-                                </button>
-                                <button type="button" onclick="testConnection()" class="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 transition font-medium">
-                                    Test Connection
-                                </button>
-                            </div>
+                            <button type="submit"
+                                class="w-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold py-3 rounded-xl hover:opacity-90 transition">
+                                Save Configuration
+                            </button>
                         </form>
-                        <div id="settingsResult" class="mt-4"></div>
-                    </div>
-
-                    <!-- Current Settings Display -->
-                    <div class="bg-gray-50 rounded-lg p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-3">Current Configuration</h3>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Provider:</span>
-                                <span class="font-medium text-gray-900" id="currentProvider">Ollama</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Model:</span>
-                                <span class="font-medium text-gray-900" id="currentModel">qwen3:4b</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">Embedding:</span>
-                                <span class="font-medium text-gray-900">google/embeddinggemma-300m</span>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
             </div>
-        </div>
+        </main>
     </div>
 
-    <script>
-        // Navigation
-        function showSection(sectionId) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            document.getElementById(sectionId).classList.add('active');
-            document.querySelector(`[data-section="${sectionId}"]`).classList.add('active');
-        }
-
-        // Load stats
-        async function loadStats() {
-            try {
-                const res = await fetch('/api/stats');
-                const data = await res.json();
-                if (data.success) {
-                    document.getElementById('totalChunks').textContent = data.total_chunks;
-                    document.getElementById('sourceCount').textContent = data.source_count;
-                    
-                    const sourcesList = document.getElementById('sourcesList');
-                    if (data.sources.length > 0) {
-                        sourcesList.innerHTML = data.sources.map(s => 
-                            `<div class="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg text-sm text-gray-700 group hover:bg-gray-100 transition">
-                                <span class="font-medium">${s}</span>
-                                <button onclick="deleteSource('${s.replace(/'/g, "\\'")}')"
-                                        class="text-red-600 hover:text-red-800 opacity-0 group-hover:opacity-100 transition">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                    </svg>
-                                </button>
-                            </div>`
-                        ).join('');
-                    } else {
-                        sourcesList.innerHTML = '<p class="text-gray-500 text-sm text-center py-8">No sources indexed yet. Add your first source to get started!</p>';
-                    }
-                }
-            } catch (e) {
-                console.error('Failed to load stats:', e);
-            }
-        }
-
-        // Scrape form
-        document.getElementById('scrapeForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = document.getElementById('scrapeBtn');
-            const result = document.getElementById('scrapeResult');
-            const url = document.getElementById('urlInput').value;
-            const name = document.getElementById('nameInput').value || url;
-            const crawlDepth = parseInt(document.getElementById('crawlDepth').value);
-            const maxPages = parseInt(document.getElementById('maxPages').value);
-
-            btn.disabled = true;
-            btn.innerHTML = '<div class="spinner"></div><span>Scraping...</span>';
-            result.innerHTML = '';
-
-            try {
-                const res = await fetch('/api/scrape', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, name, crawl_depth: crawlDepth, max_pages: maxPages })
-                });
-                const data = await res.json();
-
-                if (data.success) {
-                    result.innerHTML = `<div class="p-4 bg-green-50 border border-green-200 rounded-lg text-green-800 fade-in">
-                        <p class="font-semibold mb-1">${data.message}</p>
-                        ${data.pages > 1 ? `<p class="text-sm">Crawled ${data.pages} pages</p>` : ''}
-                    </div>`;
-                    document.getElementById('urlInput').value = '';
-                    document.getElementById('nameInput').value = '';
-                    loadStats();
-                } else {
-                    result.innerHTML = `<div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 fade-in">${data.error}</div>`;
-                }
-            } catch (e) {
-                result.innerHTML = `<div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 fade-in">Error: ${e.message}</div>`;
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<span>Scrape & Add to Knowledge Base</span>';
-            }
-        });
-
-        // Dashboard Answer form
-        document.getElementById('dashAnswerForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = document.getElementById('dashAnswerBtn');
-            const result = document.getElementById('dashAnswerResult');
-            const question = document.getElementById('dashQuestionInput').value;
-            const settings = getCurrentSettings();
-
-            btn.disabled = true;
-            btn.textContent = 'Generating...';
-            result.innerHTML = '<div class="flex items-center gap-2 text-gray-600 p-4"><div class="spinner"></div><span>Thinking...</span></div>';
-
-            try {
-                const res = await fetch('/api/answer', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ question, top_k: 3, settings })
-                });
-                const data = await res.json();
-
-                if (data.success) {
-                    result.innerHTML = `
-                        <div class="space-y-4 fade-in mt-4">
-                            <div class="p-6 bg-purple-50 border border-purple-200 rounded-lg">
-                                <p class="text-sm font-semibold text-purple-900 mb-3">Answer:</p>
-                                <p class="text-gray-800 leading-relaxed whitespace-pre-wrap">${data.answer}</p>
-                            </div>
-                            <details class="text-sm text-gray-600">
-                                <summary class="cursor-pointer hover:text-gray-900 font-medium">View source contexts (${data.contexts.length})</summary>
-                                <div class="mt-3 space-y-2">
-                                    ${data.contexts.map((c, i) => `
-                                        <div class="p-3 bg-gray-50 rounded border border-gray-200">
-                                            <p class="font-semibold text-xs text-gray-500 mb-1">Context ${i + 1}:</p>
-                                            <p class="text-gray-700 text-sm">${c.substring(0, 200)}...</p>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            </details>
-                        </div>
-                    `;
-                } else {
-                    result.innerHTML = `<div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 mt-4">${data.error}</div>`;
-                }
-            } catch (e) {
-                result.innerHTML = `<div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 mt-4">Error: ${e.message}</div>`;
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Generate Answer';
-            }
-        });
-
-        // Delete source
-        async function deleteSource(sourceName) {
-            if (!confirm(`Delete all chunks from "${sourceName}"?`)) return;
-
-            try {
-                const res = await fetch('/api/delete-source', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ source: sourceName })
-                });
-                const data = await res.json();
-
-                if (data.success) {
-                    loadStats();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            } catch (e) {
-                alert('Error: ' + e.message);
-            }
-        }
-
-        // Search form
-        document.getElementById('searchForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = document.getElementById('searchBtn');
-            const results = document.getElementById('searchResults');
-            const query = document.getElementById('searchInput').value;
-            const topK = parseInt(document.getElementById('searchTopK').value);
-
-            btn.disabled = true;
-            btn.textContent = 'Searching...';
-            results.innerHTML = '<div class="flex items-center gap-2 text-gray-600"><div class="spinner"></div><span>Searching...</span></div>';
-
-            try {
-                const res = await fetch('/api/search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, top_k: topK })
-                });
-                const data = await res.json();
-
-                if (data.success && data.results.length > 0) {
-                    results.innerHTML = data.results.map(r => `
-                        <div class="p-4 bg-gray-50 rounded-lg border border-gray-200 fade-in hover:border-gray-300 transition">
-                            <div class="flex justify-between items-start mb-2">
-                                <span class="text-xs font-semibold text-blue-600">${r.source}</span>
-                                <span class="text-xs text-gray-500">Distance: ${r.distance.toFixed(4)}</span>
-                            </div>
-                            <p class="text-sm text-gray-700 leading-relaxed">${r.text.substring(0, 300)}${r.text.length > 300 ? '...' : ''}</p>
-                        </div>
-                    `).join('');
-                } else {
-                    results.innerHTML = '<p class="text-gray-500 text-center py-8">No results found</p>';
-                }
-            } catch (e) {
-                results.innerHTML = `<div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">${e.message}</div>`;
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Search';
-            }
-        });
-
-        // Answer form
-        document.getElementById('answerForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = document.getElementById('answerBtn');
-            const result = document.getElementById('answerResult');
-            const question = document.getElementById('questionInput').value;
-            const settings = getCurrentSettings();
-
-            btn.disabled = true;
-            btn.textContent = 'Generating...';
-            result.innerHTML = '<div class="flex items-center gap-2 text-gray-600 p-4"><div class="spinner"></div><span>Thinking...</span></div>';
-
-            try {
-                const res = await fetch('/api/answer', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ question, top_k: 3, settings })
-                });
-                const data = await res.json();
-
-                if (data.success) {
-                    result.innerHTML = `
-                        <div class="space-y-4 fade-in">
-                            <div class="p-6 bg-purple-50 border border-purple-200 rounded-lg">
-                                <p class="text-sm font-semibold text-purple-900 mb-3">Answer:</p>
-                                <p class="text-gray-800 leading-relaxed whitespace-pre-wrap">${data.answer}</p>
-                            </div>
-                            <details class="text-sm text-gray-600">
-                                <summary class="cursor-pointer hover:text-gray-900 font-medium">View source contexts (${data.contexts.length})</summary>
-                                <div class="mt-3 space-y-2">
-                                    ${data.contexts.map((c, i) => `
-                                        <div class="p-3 bg-gray-50 rounded border border-gray-200">
-                                            <p class="font-semibold text-xs text-gray-500 mb-1">Context ${i + 1}:</p>
-                                            <p class="text-gray-700 text-sm">${c.substring(0, 200)}...</p>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            </details>
-                        </div>
-                    `;
-                } else {
-                    result.innerHTML = `<div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">${data.error}</div>`;
-                }
-            } catch (e) {
-                result.innerHTML = `<div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">Error: ${e.message}</div>`;
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Generate Answer';
-            }
-        });
-
-        // Settings - Toggle provider visibility
-        document.getElementById('modelProvider').addEventListener('change', function() {
-            const provider = this.value;
-            document.getElementById('ollamaSettings').style.display = provider === 'ollama' ? 'block' : 'none';
-            document.getElementById('googleSettings').style.display = provider === 'google' ? 'block' : 'none';
-        });
-
-        // Load settings from localStorage
-        function loadSettings() {
-            const settings = JSON.parse(localStorage.getItem('ragSettings') || '{"provider":"ollama","ollamaModel":"qwen3:4b","googleApiKey":""}');
-            
-            document.getElementById('modelProvider').value = settings.provider;
-            document.getElementById('ollamaModel').value = settings.ollamaModel;
-            document.getElementById('googleApiKey').value = settings.googleApiKey || '';
-            
-            // Trigger provider change
-            document.getElementById('modelProvider').dispatchEvent(new Event('change'));
-            
-            // Update current settings display
-            document.getElementById('currentProvider').textContent = settings.provider === 'ollama' ? 'Ollama' : 'Google AI';
-            document.getElementById('currentModel').textContent = settings.provider === 'ollama' ? settings.ollamaModel : 'gemini-2.5-flash';
-        }
-
-        // Save settings
-        document.getElementById('settingsForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const result = document.getElementById('settingsResult');
-            
-            const settings = {
-                provider: document.getElementById('modelProvider').value,
-                ollamaModel: document.getElementById('ollamaModel').value,
-                googleModel: 'gemini-2.5-flash',
-                googleApiKey: document.getElementById('googleApiKey').value
-            };
-            
-            // Save to localStorage
-            localStorage.setItem('ragSettings', JSON.stringify(settings));
-            
-            // Update current settings display
-            document.getElementById('currentProvider').textContent = settings.provider === 'ollama' ? 'Ollama' : 'Google AI';
-            document.getElementById('currentModel').textContent = settings.provider === 'ollama' ? settings.ollamaModel : 'gemini-2.5-flash';
-            
-            result.innerHTML = '<div class="p-4 bg-green-50 border border-green-200 rounded-lg text-green-800 fade-in">Settings saved successfully!</div>';
-            setTimeout(() => result.innerHTML = '', 3000);
-        });
-
-        // Test connection
-        async function testConnection() {
-            const result = document.getElementById('settingsResult');
-            const settings = JSON.parse(localStorage.getItem('ragSettings') || '{"provider":"ollama","ollamaModel":"qwen3:4b"}');
-            
-            result.innerHTML = '<div class="p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">Testing connection...</div>';
-            
-            try {
-                const res = await fetch('/api/test-model', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(settings)
-                });
-                const data = await res.json();
-                
-                if (data.success) {
-                    result.innerHTML = '<div class="p-4 bg-green-50 border border-green-200 rounded-lg text-green-800 fade-in">✓ Connection successful!</div>';
-                } else {
-                    result.innerHTML = `<div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 fade-in">✗ ${data.error}</div>`;
-                }
-            } catch (e) {
-                result.innerHTML = `<div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 fade-in">✗ Error: ${e.message}</div>`;
-            }
-        }
-
-        // Get current settings for API calls
-        function getCurrentSettings() {
-            const settings = JSON.parse(localStorage.getItem('ragSettings') || '{"provider":"ollama","ollamaModel":"qwen3:4b","googleApiKey":""}');
-            settings.googleModel = 'gemini-2.5-flash'; // Always use Gemini 2.5 Flash
-            return settings;
-        }
-
-        // Initial load
-        loadStats();
-        loadSettings();
-    </script>
+    <!-- Main JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
+
 </html>
