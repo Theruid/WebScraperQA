@@ -1,5 +1,5 @@
 # RAG (Retrieval-Augmented Generation) System
-<img width="1454" height="346" alt="image" src="https://github.com/user-attachments/assets/74ad6645-405e-411d-bc48-80de0b560401" />
+<img width="1485" height="474" alt="image" src="https://github.com/user-attachments/assets/4e753c0d-c37c-4cf4-9147-f3e334b26695" />
 
 A powerful RAG system that allows you to query documents using local or cloud-based language models. This system supports both Ollama (local) and Google AI (cloud) models for generating answers based on your indexed documents.
 
